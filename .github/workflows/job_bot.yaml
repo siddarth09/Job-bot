@@ -35,4 +35,4 @@ jobs:
             --output google \
             --google_sheet_id 1VWbAi1eIT10ZS2n-W9dU8p483Dnvf1GhaDPz2czXKhE \
             --google_worksheet Jobs \
-            --pages 1
+            --pages 5

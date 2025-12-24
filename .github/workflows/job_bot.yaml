@@ -1,0 +1,39 @@
+name: LinkedIn Jobs → Google Sheets (Hourly)
+
+on:
+  schedule:
+    - cron: "0 * * * *"   
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r JobSearchAutomation/requirements.txt
+
+      - name: Write credentials.json from secret
+        run: |
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+
+      - name: Run scraper and overwrite worksheet
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: credentials.json
+        run: |
+          cd JobSearchAutomation
+          python main.py \
+            --output google \
+            --google_sheet_id 1VWbAi1eIT10ZS2n-W9dU8p483Dnvf1GhaDPz2czXKhE \
+            --google_worksheet Jobs \
+            --pages 1

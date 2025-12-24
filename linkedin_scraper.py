@@ -102,9 +102,7 @@ class LinkedInScraper:
 
         # Keep only jobs with a parsable age <= max_posted_days
         if "posted_days" in df.columns:
-            df = df[df["posted_days"].notna()]
-            df["posted_days"] = df["posted_days"].astype(int)
-            df = df[df["posted_days"] <= self.max_posted_days]
+            df = df[(df["posted_days"].isna()) | (df["posted_days"] <= 7)]
 
         # Sort: newest first, then score
         if "posted_days" in df.columns and "fit_score" in df.columns:

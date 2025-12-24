@@ -106,8 +106,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     df = scraper.scrape()
     if df.empty:
-        print("No jobs were scraped. Try increasing the number of pages or checking the roles.")
-        return 1
+        print("No jobs were scraped. Sheet will be cleared.")
+        if args.output == "google" and args.google_sheet_id:
+            scraper.push_to_google_sheet(df, args.google_sheet_id, args.google_worksheet)
+        return 0
     # Output
     if args.output == "csv":
         path = Path(args.csv_path)

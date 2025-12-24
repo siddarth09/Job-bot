@@ -28,7 +28,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--roles",
         type=str,
-        default="Robotics Engineer,Autonomy Engineer,Controls Engineer",
+        default="Robotics Engineer",
         help="Comma separated list of role keywords",
     )
     parser.add_argument(

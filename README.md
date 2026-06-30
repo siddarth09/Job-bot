@@ -1,97 +1,123 @@
-## Job Search Automation Project
+# Job Search Automation
 
-This repository implements a simple, extensible pipeline for scraping jobs from LinkedIn, classifying them into pre‑defined categories (Robotics Engineer, Autonomy Engineer and Controls Engineer) and exporting the results into either Google Sheets or a Notion database.  It is designed to run from a command line and uses only widely available Python packages.
+A small, dependable pipeline that scrapes LinkedIn job postings for the roles you
+care about, scores each one against **your** profile, and keeps a running tracker
+of everything you've seen — in a CSV, a Google Sheet, or Notion.
 
-> **Important:**  LinkedIn imposes rate‑limits and does not provide a public API for job search.  This code relies on a guest endpoint (``/jobs-guest/jobs/api/seeMoreJobPostings/search``) that currently returns HTML fragments for job listings without authentication.  While this endpoint works at the time of writing, it is not officially supported and may change at any time.  Running this scraper too aggressively may result in blocked requests.  Use responsibly, cache results and respect LinkedIn’s terms of service.
+It's built to run **daily** (locally or via GitHub Actions) and is designed so the
+output is something you actually work out of: mark a job `APPLIED`, jot a note, and
+those edits survive every future run.
 
-### Features
+> **Note on LinkedIn:** there's no public job-search API. This uses LinkedIn's
+> public *guest* endpoints (the same ones that serve logged-out job pages). They
+> work today but are unofficial and rate-limited — scrape gently (daily, not
+> hourly) and respect LinkedIn's terms of service.
 
-* **Role filtering** – Specify a list of roles you are interested in.  Each role is turned into a keyword for the LinkedIn search.  Default roles are:
-  * Robotics Engineer
-  * Autonomy Engineer
-  * Controls Engineer
+## What it does
 
-* **Location filtering** – Specify a location string (default ``United States``) to focus the search geographically.
+1. **Search** — one query per role keyword, paged through results.
+2. **Enrich** — fetches each posting's detail page for the *full* description plus
+   seniority level and employment type (the search cards alone don't include these).
+3. **Score** — a transparent, weighted fit score (0–100) from your `profile.yaml`:
+   skills you have, must-have signals, and dealbreakers that subtract points.
+4. **Track** — merges with prior results by stable LinkedIn job ID. Your
+   `status` and `notes` columns are **never overwritten**; new postings show up as
+   `NEW`, and jobs you've already triaged stay put.
+5. **Export** — CSV (default), Google Sheets, or Notion.
 
-* **Pagination** – For each role the scraper iterates through result pages by incrementing the ``start`` parameter.  The number of pages to fetch is configurable.
-
-* **Classification** – Each job is tagged with its corresponding role keyword and an arbitrary “fit score” computed from simple keyword overlaps in the description.  You can refine this logic in `classify_job`.
-
-* **Output options** – Save the scraped data to a CSV file, update a Google Sheet or push rows into a Notion database.  Only the CSV export works out of the box; the Notion/Google integrations require API credentials.  See below for configuration details.
-
-### Installation
-
-Clone this repository and install the dependencies:
+## Quick start
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+
+# Edit profile.yaml to describe yourself, then:
+python main.py --config profile.yaml --output csv --csv_path jobs.csv
 ```
 
-### Configuration
+Open `jobs.csv`, sort by `fit_score`, and start triaging. Set a job's `status`
+to `APPLIED` / `INTERVIEWING` / `DISMISSED` and add `notes` — re-run any time and
+your edits are preserved while new postings are appended.
 
-The primary configuration is done via command‑line arguments when running ``main.py``:
+## Your profile (`profile.yaml`)
 
+`profile.yaml` is the one file you edit. It controls what gets searched and how
+jobs are scored:
+
+```yaml
+roles: [Robotics Engineer, Controls Engineer]
+location: United States
+pages: 5
+max_posted_days: 7
+
+skills: [ROS, C++, Python, SLAM, state estimation]   # +skill_points each
+must_have: [robotics, autonomy]                       # +must_have_points each
+exclude_keywords: [security clearance, principal]     # -exclude_penalty each
+
+scoring:
+  title_role_match: 30
+  skill_points: 4
+  must_have_points: 12
+  exclude_penalty: 25
 ```
-python main.py \
-  --roles "Robotics Engineer,Autonomy Engineer,Controls Engineer" \
-  --location "United States" \
-  --pages 2 \
-  --output csv \
-  --csv_path scraped_jobs.csv
-```
 
-Parameters:
+CLI flags override config values, e.g. `--pages 2` for a quick test run.
 
-| Flag          | Description                                                                              | Default                   |
-|--------------|------------------------------------------------------------------------------------------|---------------------------|
-| ``--roles``   | Comma‑separated list of role keywords to search for                                     | ``Robotics Engineer,Autonomy Engineer,Controls Engineer`` |
-| ``--location``| Location string to filter LinkedIn jobs (e.g. ``United States``, ``Boston, MA``)         | ``United States``         |
-| ``--pages``   | Number of pages per role to fetch (each page contains ~25 jobs)                          | ``1``                     |
-| ``--output``  | Export destination: ``csv`` (default), ``google`` or ``notion``                          | ``csv``                   |
-| ``--csv_path``| Path of the CSV file to write when output is ``csv``                                     | ``scraped_jobs.csv``      |
-| ``--google_sheet_id`` | ID of the Google Sheet to update when output is ``google`` (requires credentials) | ``None``                  |
-| ``--google_worksheet`` | Name of the worksheet within the Google Sheet                                   | ``Jobs``                  |
-| ``--notion_token`` | Notion API integration token when output is ``notion``                              | ``None``                  |
-| ``--notion_database_id`` | ID of the Notion database                                                     | ``None``                  |
+## Output columns
 
-To enable Google Sheets integration you must create a service account in Google Cloud, share your sheet with the service account’s email and save the JSON credentials file locally.  Set the environment variable ``GOOGLE_APPLICATION_CREDENTIALS`` to point at this file.  See ``linkedin_scraper.py`` for details.
+| Column | Meaning |
+|---|---|
+| `job_id` | Stable LinkedIn posting ID (dedup key) |
+| `status` | **You own this** — NEW / APPLIED / INTERVIEWING / DISMISSED |
+| `notes` | **You own this** — free text, preserved across runs |
+| `fit_score` | 0–100 from your profile |
+| `tags` | Matched skills; dealbreakers prefixed with `!` |
+| `title`, `company`, `location` | |
+| `posted`, `posted_days`, `posted_date` | Freshness (parsed from the posting's date) |
+| `seniority`, `employment_type` | From the detail page |
+| `link`, `description` | |
+| `first_seen_utc`, `last_seen_utc` | When the bot first/last saw it |
 
-For Notion integration you need a Notion integration token and the ID of the database you wish to populate.  Share the database with your integration.
+## Google Sheets (recommended for daily use)
 
-### Running the scraper
+The Sheet becomes your living tracker — edit `status`/`notes` in the browser and
+the bot preserves them.
 
-To scrape two pages of jobs for each role and save them to a CSV file:
+1. Create a Google Cloud service account, enable the Sheets API, download its JSON key.
+2. Share your Sheet with the service account's email.
+3. Point `GOOGLE_APPLICATION_CREDENTIALS` at the key file.
 
 ```bash
-python main.py --pages 2 --output csv --csv_path robotics_jobs.csv
+export GOOGLE_APPLICATION_CREDENTIALS=credentials.json
+python main.py --config profile.yaml --output google \
+  --google_sheet_id YOUR_SHEET_ID --google_worksheet Jobs
 ```
 
-To push the scraped jobs directly into a Google Sheet:
+## Notion
 
 ```bash
-python main.py \
-  --output google \
-  --google_sheet_id YOUR_SHEET_ID \
-  --google_worksheet Jobs \
-  --pages 1
+python main.py --config profile.yaml --output notion \
+  --notion_token YOUR_TOKEN --notion_database_id YOUR_DB_ID
 ```
 
-To push into a Notion database:
+## Run it on a schedule (GitHub Actions)
+
+`.github/workflows/job_bot.yaml` runs the scraper once a day and writes to your
+Sheet. Add two repository secrets:
+
+- `GOOGLE_CREDENTIALS_JSON` — the full service-account JSON
+- `GOOGLE_SHEET_ID` — your Sheet's ID
+
+## Tests
 
 ```bash
-python main.py \
-  --output notion \
-  --notion_token YOUR_NOTION_TOKEN \
-  --notion_database_id YOUR_DATABASE_ID \
-  --pages 1
+python -m unittest discover -s tests -v
 ```
 
-### Extending the classifier
+Parsing, date handling, scoring, and the merge/dedup logic are covered with
+offline unit tests (no network). CI runs them on every push (`.github/workflows/tests.yaml`).
 
-The `LinkedInScraper.classify_job` method assigns a simple fit score and tags based on keyword overlap.  Feel free to enhance this with more sophisticated natural language processing, such as spaCy or scikit‑learn models, to better rank job relevancy.
+## Disclaimer
 
-### Disclaimer
-
-This project is provided for educational purposes.  Use it at your own risk, abide by LinkedIn’s terms of service and do not abuse scraping endpoints.  The authors are not responsible for any consequences resulting from the misuse of this code.
+For educational use. Scrape responsibly, respect LinkedIn's terms of service, and
+don't hammer their endpoints.

@@ -1,1 +1,12 @@
 credentials.json
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Scraper output
+*.csv
+scraped_jobs.csv
+jobs.csv

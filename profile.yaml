@@ -1,0 +1,54 @@
+# Your job-search profile. Edit this to match yourself — it drives the fit score.
+# Run with:  python main.py --config profile.yaml --output csv
+
+# Roles to search for on LinkedIn (one search per role).
+roles:
+  - Robotics Engineer
+  - Robotics Autonomy Engineer
+  - Controls Engineer
+
+location: United States
+pages: 5                 # ~25 jobs per page per role
+max_posted_days: 7       # ignore anything older than a week
+
+# Skills you have. Each match (in title or description) adds `skill_points`.
+skills:
+  - ROS
+  - ROS 2
+  - C++
+  - Python
+  - SLAM
+  - state estimation
+  - localization
+  - navigation
+  - MPC
+  - optimization
+  - control theory
+  - reinforcement learning
+  - simulation
+  - perception
+  - sensor fusion
+  - Kalman filter
+
+# Strong signals — worth more than a regular skill (adds `must_have_points` each).
+must_have:
+  - autonomy
+  - robotics
+  - controls
+
+# Dealbreakers — each match subtracts `exclude_penalty`. Use for things you
+# can't/won't do (e.g. security clearance) or seniority mismatches.
+exclude_keywords:
+  - security clearance
+  - active clearance
+  - ts/sci
+  - principal
+  - staff engineer
+  - director
+
+# Scoring weights (tune to taste). Final score is clamped to 0–100.
+scoring:
+  title_role_match: 30   # role keyword appears in the job title
+  skill_points: 4        # per matched skill
+  must_have_points: 12   # per matched must-have signal
+  exclude_penalty: 25    # per matched dealbreaker

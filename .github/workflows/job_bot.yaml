@@ -1,9 +1,15 @@
-name: LinkedIn Jobs → Google Sheets (Hourly)
+name: LinkedIn Jobs → Google Sheets (Daily)
 
 on:
   schedule:
-    - cron: "0 * * * *"   
+    # 13:00 UTC daily (~6am PT / 9am ET). Hourly scraping gets rate-limited.
+    - cron: "0 13 * * *"
   workflow_dispatch:
+
+# Avoid overlapping runs.
+concurrency:
+  group: job-scraper
+  cancel-in-progress: false
 
 jobs:
   scrape:
@@ -17,6 +23,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
 
       - name: Install dependencies
         run: |
@@ -27,12 +34,13 @@ jobs:
         run: |
           echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
 
-      - name: Run scraper and overwrite worksheet
+      - name: Run scraper (merges with existing sheet; preserves status/notes)
         env:
           GOOGLE_APPLICATION_CREDENTIALS: credentials.json
         run: |
           python main.py \
+            --config profile.yaml \
             --output google \
-            --google_sheet_id 1VWbAi1eIT10ZS2n-W9dU8p483Dnvf1GhaDPz2czXKhE \
+            --google_sheet_id ${{ secrets.GOOGLE_SHEET_ID }} \
             --google_worksheet Jobs \
-            --pages 5
+            --pause 3
